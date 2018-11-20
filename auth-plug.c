@@ -1,5 +1,5 @@
-#include <mosquitto.h>
-#include <mosquitto_plugin.h>
+#include "mosquitto.h"
+#include "mosquitto_plugin.h"
 
 #if LIBMOSQUITTO_VERSION_NUMBER >= 1004090
 int conv_code(int val){
