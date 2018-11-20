@@ -1,0 +1,14 @@
+language: rust
+dist: trusty
+sudo: required
+os: linux
+rust: stable
+env:
+  - TARGET_DISTRIBUTION=centos7
+
+before_script:
+  -  yum install -y mosquitto-devel
+
+script:
+  - make test
+  - make

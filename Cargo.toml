@@ -1,0 +1,20 @@
+[package]
+name = "chipin_mqtt_auth_plugin"
+version = "0.1.0"
+
+[lib]
+crate-type = ["lib", "staticlib"]
+
+[profile.release]
+# panic = "abort"
+
+[dependencies]
+jsonwebtoken = "5"
+serde_derive = "1"
+serde = "1"
+serde_json = "*"
+regex = "1"
+log = "0.4"
+simplelog = "0.5"
+chrono = "*"
+lazy_static = "1"
