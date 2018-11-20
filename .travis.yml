@@ -3,7 +3,9 @@ sudo: required
 rust: stable
 
 before_install:
-  -  sudo apt-get install -y mosquitto-dev
+  - sudo add-apt-repository -y ppa:mosquitto-dev/mosquitto-ppa
+  - sudo apt-get update
+  - sudo apt-get install -y mosquitto-dev
 
 install:
   - make
