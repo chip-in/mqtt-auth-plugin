@@ -10,6 +10,7 @@ extern crate chrono;
 extern crate simplelog;
 #[macro_use]
 extern crate lazy_static;
+extern crate percent_encoding;
 
 mod config;
 mod misc;
@@ -29,6 +30,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::{Mutex, RwLock};
 use std::thread;
 use std::time::SystemTime;
+use percent_encoding::percent_decode;
 
 pub const DEFAULT_CONFIG_PATH_OPT_KEY: &str = "chipin_config_path";
 pub const DEFAULT_CONFIG_PATH: &str = "/etc/mosquitto/acl.json";
@@ -411,11 +413,11 @@ fn proc_mosquitto_auth_acl_check(
         .and_then(|x| x.as_str())
         .unwrap_or("no sub");
     let (db_name, subset_name) = if let Some(caps) = REGEX_PATH_TRANSACTION.captures(topic) {
-        (caps.get(1).unwrap().as_str(), None)
+        (percent_decode(caps.get(1).unwrap().as_str().as_bytes()).decode_utf8().unwrap(), None)
     } else if let Some(caps) = REGEX_PATH_SUBSET_TRANSACTION.captures(topic) {
         (
-            caps.get(1).unwrap().as_str(),
-            Some(caps.get(2).unwrap().as_str()),
+            percent_decode(caps.get(1).unwrap().as_str().as_bytes()).decode_utf8().unwrap(),
+            Some(percent_decode(caps.get(2).unwrap().as_str().as_bytes()).decode_utf8().unwrap()),
         )
     } else {
         warn!("sub:{}, illegal topic:{}", sub, topic);
@@ -426,7 +428,7 @@ fn proc_mosquitto_auth_acl_check(
             continue;
         };
         let path = &acl.resource.path;
-        if path.check_path(db_name, subset_name) {
+        if path.check_path(db_name.as_ref(), subset_name.as_ref().map(|x| x.as_ref())) {
             let result = check_accesses(&token_data.claims, &acl.resource.accesses, access);
             if result == MOSQ_ERR_SUCCESS {
                 let log = user_data.log.lock().unwrap();
