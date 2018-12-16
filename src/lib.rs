@@ -146,7 +146,7 @@ pub extern "C" fn proc_mosquitto_auth_plugin_init(
 
     // init loggers
     let mut log_list: Vec<Box<SharedLogger>> = vec![];
-    log_list.push(TermLogger::new(LevelFilter::Debug, Config::default()).unwrap());
+    TermLogger::new(LevelFilter::Debug, Config::default()).map(|x| log_list.push(x));
     if let Ok(log_file) = OpenOptions::new()
         .append(true)
         .create(true)
