@@ -51,7 +51,7 @@ pub fn update_config(config_path: &str) -> ::ConfigInfo {
     let config = match config::read_from_file(config_path) {
         Ok(x) => Some(Box::new(x)),
         Err(e) => {
-            error!("{}", e);
+            error!("{}: {}", e, config_path);
             None
         }
     };

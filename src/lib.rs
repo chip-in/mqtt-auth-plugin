@@ -18,7 +18,7 @@ use chrono::prelude::*;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use regex::Regex;
 use serde_json::Value;
-use simplelog::{CombinedLogger, Config, LevelFilter, SharedLogger, TermLogger, WriteLogger};
+use simplelog::{CombinedLogger, Config, Level, LevelFilter, SharedLogger, TermLogger, WriteLogger};
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::fmt;
@@ -39,8 +39,8 @@ pub const DEFAULT_AUTH_LOG_FILE_NAME: &str = "/var/log/mosquitto/auth.log";
 pub const DEFAULT_LOG_FILE_NAME_OPT_KEY: &str = "chipin_log_file";
 pub const DEFAULT_LOG_FILE_NAME: &str = "/var/log/mosquitto/chipin-plugin.log";
 pub const DEFAULT_LOG_LEVEL_OPT_KEY: &str = "chipin_log_level";
-pub const CONFIG_FILE_CHECK_INTERVAL: u64 = 1;
-pub const LOG_DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
+pub const CONFIG_FILE_CHECK_INTERVAL: u64 = 60;
+pub const LOG_DATE_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%Z";
 pub const PATH_TRANSACTION: &str = r"^/m/d/([^/]+)/transaction$";
 pub const PATH_SUBSET_TRANSACTION: &str = r"^/m/d/([^/]+)/subset/([^/]+)/transaction$";
 
@@ -154,7 +154,13 @@ pub extern "C" fn proc_mosquitto_auth_plugin_init(
     {
         log_list.push(WriteLogger::new(
             LevelFilter::from_str(log_level).unwrap_or(LevelFilter::Info),
-            Config::default(),
+            Config {
+                time: Some(Level::Error),
+                level: Some(Level::Error),
+                target: Some(Level::Debug),
+                location: Some(Level::Trace),
+                time_format: Some("%Y-%m-%dT%H:%M:%S%Z"),
+            },
             log_file,
         ));
     }
@@ -180,9 +186,9 @@ pub extern "C" fn proc_mosquitto_auth_plugin_init(
             {
                 Ok(log_file) => {
                     let mut f = BufWriter::new(log_file);
-                    writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
+                    let _ = writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
                     while let Ok((time, text)) = log_receiver.try_recv() {
-                        writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
+                        let _ = writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
                     }
                 }
                 Err(_e) => continue,
@@ -283,7 +289,6 @@ pub extern "C" fn proc_mosquitto_auth_unpwd_check_v3(
 }
 
 fn proc_mosquitto_auth_unpwd_check(user_data: &UserData, token: *const c_char) -> c_int {
-    debug!("proc_mosquitto_auth_unpwd_check_v2");
     misc::check_config_update(&user_data);
     if token == NULL {
         return MOSQ_ERR_AUTH;
@@ -423,6 +428,12 @@ fn proc_mosquitto_auth_acl_check(
         warn!("sub:{}, illegal topic:{}", sub, topic);
         return MOSQ_ERR_ACL_DENIED;
     };
+    let mode = match access {
+        MOSQ_ACL_READ => "READ",
+        MOSQ_ACL_WRITE => "WRITE",
+        MOSQ_ACL_SUBSCRIBE => "SUBSCRIBE",
+        _ => "ANOTHER",
+    };
     for acl in &config.acl {
         if acl.resource.resource_type != "dadget" {
             continue;
@@ -434,20 +445,14 @@ fn proc_mosquitto_auth_acl_check(
                 let log = user_data.log.lock().unwrap();
                 if let Some(ref log) = *log {
                     let mut output = String::new();
-                    let mode = match access {
-                        MOSQ_ACL_READ => "READ",
-                        MOSQ_ACL_WRITE => "WRITE",
-                        MOSQ_ACL_SUBSCRIBE => "SUBSCRIBE",
-                        _ => "ANOTHER",
-                    };
-                    fmt::write(&mut output, format_args!("{} {}", mode, sub)).unwrap();
+                    fmt::write(&mut output, format_args!("{} {} {}", mode, topic, sub)).unwrap();
                     log.send((Local::now(), output)).unwrap();
                 };
                 return result;
             }
         }
     }
-    warn!("sub:{}, no permission topic:{}", sub, topic);
+    warn!("sub:{}, No {} permission topic:{}", sub, mode, topic);
     MOSQ_ERR_ACL_DENIED
 }
 
