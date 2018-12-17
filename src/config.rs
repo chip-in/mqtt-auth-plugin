@@ -66,7 +66,7 @@ impl<'de> Deserialize<'de> for ResourcePath {
                 .split('/')
                 .filter(|&x| x.len() > 0)
                 .try_fold(Vec::new(), |mut vec, x| {
-                    regex::Regex::new(x).map(|x| {
+                    regex::Regex::new(&format!("^{}$", x)).map(|x| {
                         vec.push(x);
                         vec
                     })
