@@ -7,34 +7,34 @@
         "type": "dadget",
         "path": {
           "regex": "/dbname.*/sub.*"
+        }
+      },
+      "accesses": [
+        {
+          "operation": "READ"
         },
-        "accesses": [
-          {
-            "operation": "READ"
-          },
-          {
-            "operation": "WRITE",
-            "subject": {
-              "sub": "^(xxxx|yyyy)@example\\.jp$"
-            }
+        {
+          "operation": "WRITE",
+          "subject": {
+            "sub": "^(xxxx|yyyy)@example\\.jp$"
           }
-        ]
-      }
+        }
+      ]
     },
     {
       "name": "sample2",
       "resource": {
         "type": "dadget",
-        "path": "/db2",
-        "accesses": [
-          {
-            "operation": "WRITE",
-            "subject": {
-              "xattr": "^33333$"
-            }
+        "path": "/db2"
+      },
+      "accesses": [
+        {
+          "operation": "WRITE",
+          "subject": {
+            "xattr": "^33333$"
           }
-        ]
-      }
+        }
+      ]
     }
   ]
 }
