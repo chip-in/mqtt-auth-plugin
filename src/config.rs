@@ -16,6 +16,7 @@ pub struct Config {
 pub struct Acl {
     pub name: String,
     pub resource: Resource,
+    pub accesses: Vec<Accesses>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -23,7 +24,6 @@ pub struct Resource {
     #[serde(rename = "type")]
     pub resource_type: String,
     pub path: ResourcePath,
-    pub accesses: Vec<Accesses>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -66,7 +66,7 @@ impl<'de> Deserialize<'de> for ResourcePath {
                 .split('/')
                 .filter(|&x| x.len() > 0)
                 .try_fold(Vec::new(), |mut vec, x| {
-                    regex::Regex::new(x).map(|x| {
+                    regex::Regex::new(&format!("^{}$", x)).map(|x| {
                         vec.push(x);
                         vec
                     })

@@ -440,7 +440,7 @@ fn proc_mosquitto_auth_acl_check(
         };
         let path = &acl.resource.path;
         if path.check_path(db_name.as_ref(), subset_name.as_ref().map(|x| x.as_ref())) {
-            let result = check_accesses(&token_data.claims, &acl.resource.accesses, access);
+            let result = check_accesses(&token_data.claims, &acl.accesses, access);
             if result == MOSQ_ERR_SUCCESS {
                 let log = user_data.log.lock().unwrap();
                 if let Some(ref log) = *log {
