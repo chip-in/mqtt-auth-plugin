@@ -1,14 +1,13 @@
-extern crate jsonwebtoken;
 extern crate chipin_mqtt_auth_plugin;
+extern crate jsonwebtoken;
 #[macro_use]
 extern crate serde_derive;
 
-use jsonwebtoken::{encode, Header};
 use chipin_mqtt_auth_plugin::*;
+use jsonwebtoken::{encode, Header};
 use std::ffi::CString;
 use std::os::raw::c_int;
-use std::time::{SystemTime, UNIX_EPOCH};
-
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
     sub: &'static str,
@@ -131,6 +130,62 @@ fn test_proc_mosquitto_auth_plugin_init() {
         ::MOSQ_ERR_SUCCESS
     );
 
+    assert_eq!(
+        check1(
+            ptr_user_data,
+            "/mqtt_test/dddd",
+            ::MOSQ_ACL_WRITE,
+            &Claims {
+                sub: "xxxx@example.jp",
+                xattr: "33333",
+                exp: unix_time() + 10,
+            },
+        ),
+        ::MOSQ_ERR_SUCCESS
+    );
+
+    assert_eq!(
+        check1(
+            ptr_user_data,
+            "/mqtt_testa",
+            ::MOSQ_ACL_WRITE,
+            &Claims {
+                sub: "xxxx@example.jp",
+                xattr: "33333",
+                exp: unix_time() + 10,
+            },
+        ),
+        ::MOSQ_ERR_ACL_DENIED
+    );
+
+    assert_eq!(
+        check1(
+            ptr_user_data,
+            "/mqtt_test2",
+            ::MOSQ_ACL_WRITE,
+            &Claims {
+                sub: "xxxx@example.jp",
+                xattr: "33333",
+                exp: unix_time() + 10,
+            },
+        ),
+        ::MOSQ_ERR_SUCCESS
+    );
+
+    assert_eq!(
+        check1(
+            ptr_user_data,
+            "/dummy/mqtt_test2",
+            ::MOSQ_ACL_WRITE,
+            &Claims {
+                sub: "xxxx@example.jp",
+                xattr: "33333",
+                exp: unix_time() + 10,
+            },
+        ),
+        ::MOSQ_ERR_ACL_DENIED
+    );
+
     ::proc_mosquitto_auth_plugin_cleanup(
         unsafe { *ptr_user_data },
         &mosquitto_opt[0],
@@ -147,11 +202,15 @@ fn check1(ptr_user_data: *mut *mut UserData, topic: &str, access: c_int, claims:
 
     let topic = CString::new(topic).expect("error");
 
-    ::proc_mosquitto_auth_acl_check_v2(
+    let start = Instant::now();
+    let result = ::proc_mosquitto_auth_acl_check_v2(
         unsafe { *ptr_user_data },
         ::NULL,
         token.as_ptr(),
         topic.as_ptr(),
         access,
-    )
+    );
+    let end = start.elapsed();
+    println!("{} nano sec", end.subsec_nanos());
+    result
 }

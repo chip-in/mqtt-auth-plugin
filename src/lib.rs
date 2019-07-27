@@ -16,9 +16,13 @@ mod config;
 mod misc;
 use chrono::prelude::*;
 use jsonwebtoken::{decode, Algorithm, Validation};
+use percent_encoding::percent_decode;
 use regex::Regex;
 use serde_json::Value;
-use simplelog::{CombinedLogger, Config, Level, LevelFilter, SharedLogger, TermLogger, WriteLogger};
+use simplelog::{
+    CombinedLogger, Config, Level, LevelFilter, SharedLogger, TermLogger, WriteLogger,
+};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::fmt;
@@ -30,7 +34,6 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::{Mutex, RwLock};
 use std::thread;
 use std::time::SystemTime;
-use percent_encoding::percent_decode;
 
 pub const DEFAULT_CONFIG_PATH_OPT_KEY: &str = "chipin_config_path";
 pub const DEFAULT_CONFIG_PATH: &str = "/etc/mosquitto/acl.json";
@@ -188,7 +191,8 @@ pub extern "C" fn proc_mosquitto_auth_plugin_init(
                     let mut f = BufWriter::new(log_file);
                     let _ = writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
                     while let Ok((time, text)) = log_receiver.try_recv() {
-                        let _ = writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
+                        let _ =
+                            writeln!(f, "{} {}", time.format(LOG_DATE_FORMAT).to_string(), text);
                     }
                 }
                 Err(_e) => continue,
@@ -418,15 +422,25 @@ fn proc_mosquitto_auth_acl_check(
         .and_then(|x| x.as_str())
         .unwrap_or("no sub");
     let (db_name, subset_name) = if let Some(caps) = REGEX_PATH_TRANSACTION.captures(topic) {
-        (percent_decode(caps.get(1).unwrap().as_str().as_bytes()).decode_utf8().unwrap(), None)
+        (
+            percent_decode(caps.get(1).unwrap().as_str().as_bytes())
+                .decode_utf8()
+                .unwrap(),
+            None,
+        )
     } else if let Some(caps) = REGEX_PATH_SUBSET_TRANSACTION.captures(topic) {
         (
-            percent_decode(caps.get(1).unwrap().as_str().as_bytes()).decode_utf8().unwrap(),
-            Some(percent_decode(caps.get(2).unwrap().as_str().as_bytes()).decode_utf8().unwrap()),
+            percent_decode(caps.get(1).unwrap().as_str().as_bytes())
+                .decode_utf8()
+                .unwrap(),
+            Some(
+                percent_decode(caps.get(2).unwrap().as_str().as_bytes())
+                    .decode_utf8()
+                    .unwrap(),
+            ),
         )
     } else {
-        warn!("sub:{}, illegal topic:{}", sub, topic);
-        return MOSQ_ERR_ACL_DENIED;
+        (Cow::from(""), None)
     };
     let mode = match access {
         MOSQ_ACL_READ => "READ",
@@ -435,51 +449,94 @@ fn proc_mosquitto_auth_acl_check(
         _ => "ANOTHER",
     };
     for acl in &config.acl {
-        if acl.resource.resource_type != "dadget" {
-            continue;
-        };
-        let path = &acl.resource.path;
-        if path.check_path(db_name.as_ref(), subset_name.as_ref().map(|x| x.as_ref())) {
-            let result = check_accesses(&token_data.claims, &acl.accesses, access);
-            if result == MOSQ_ERR_SUCCESS {
-                let log = user_data.log.lock().unwrap();
-                if let Some(ref log) = *log {
-                    let mut output = String::new();
-                    fmt::write(&mut output, format_args!("{} {} {}", mode, topic, sub)).unwrap();
-                    log.send((Local::now(), output)).unwrap();
-                };
-                return result;
+        match &acl.resource {
+            config::Resource::Dadget(resource) => {
+                if resource
+                    .path
+                    .check_path(db_name.as_ref(), subset_name.as_ref().map(|x| x.as_ref()))
+                {
+                    let result = check_accesses(&token_data.claims, &acl.accesses, access);
+                    if result == MOSQ_ERR_SUCCESS {
+                        let log = user_data.log.lock().unwrap();
+                        if let Some(ref log) = *log {
+                            let mut output = String::new();
+                            fmt::write(&mut output, format_args!("{} {} {}", mode, topic, sub))
+                                .unwrap();
+                            log.send((Local::now(), output)).unwrap();
+                        };
+                        return result;
+                    }
+                }
             }
+            config::Resource::Mqtt(resource) => {
+                if resource.path.check_path(topic) {
+                    let result = check_accesses(&token_data.claims, &acl.accesses, access);
+                    if result == MOSQ_ERR_SUCCESS {
+                        let log = user_data.log.lock().unwrap();
+                        if let Some(ref log) = *log {
+                            let mut output = String::new();
+                            fmt::write(&mut output, format_args!("{} {} {}", mode, topic, sub))
+                                .unwrap();
+                            log.send((Local::now(), output)).unwrap();
+                        };
+                        return result;
+                    }
+                }
+            }
+            config::Resource::Other => {}
         }
     }
     warn!("sub:{}, No {} permission topic:{}", sub, mode, topic);
     MOSQ_ERR_ACL_DENIED
 }
 
-impl config::ResourcePath {
+impl config::DadgetResourcePath {
     fn check_path(&self, db_name: &str, subset_name: Option<&str>) -> bool {
         match self {
-            config::ResourcePath::Str(x) => match x.len() {
+            config::DadgetResourcePath::Str(x) => match x.len() {
                 0 => true,
                 1 => x[0] == db_name,
                 2 => {
-                    x[0] == db_name && match subset_name {
-                        Some(subset_name) => x[1] == *subset_name,
-                        None => false,
-                    }
+                    x[0] == db_name
+                        && match subset_name {
+                            Some(subset_name) => x[1] == *subset_name,
+                            None => false,
+                        }
                 }
                 _ => false,
             },
-            config::ResourcePath::Regex(x) => match x.len() {
+            config::DadgetResourcePath::Regex(x) => match x.len() {
                 1 => x[0].is_match(db_name),
                 2 => {
-                    x[0].is_match(db_name) && match subset_name {
-                        Some(subset_name) => x[1].is_match(subset_name),
-                        None => false,
-                    }
+                    x[0].is_match(db_name)
+                        && match subset_name {
+                            Some(subset_name) => x[1].is_match(subset_name),
+                            None => false,
+                        }
                 }
                 _ => false,
             },
+        }
+    }
+}
+
+impl config::MqttResourcePath {
+    fn check_path(&self, topic: &str) -> bool {
+        match self {
+            config::MqttResourcePath::Str(x) => {
+                if x.len() > topic.len() {
+                    return false;
+                }
+                if x.len() == topic.len() {
+                    return topic == x;
+                }
+                if x.ends_with('/') {
+                    topic.starts_with(x)
+                } else {
+                    topic.starts_with((x.to_string() + "/").as_str())
+                }
+            }
+            config::MqttResourcePath::Regex(x) => x.is_match(topic),
         }
     }
 }

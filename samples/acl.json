@@ -35,6 +35,41 @@
           }
         }
       ]
+    },
+    {
+      "name": "mqtt_test",
+      "resource": {
+        "type": "mqtt",
+        "path": "/mqtt_test"
+      },
+      "accesses": [
+        {
+          "operation": "WRITE",
+          "subject": {
+            "xattr": "^33333$"
+          }
+        }
+      ]
+    },
+    {
+      "name": "mqtt_test2",
+      "resource": {
+        "type": "mqtt",
+        "path": {
+          "regex": "/mqtt_test[2]"
+        }
+      },
+      "accesses": [
+        {
+          "operation": "READ"
+        },
+        {
+          "operation": "WRITE",
+          "subject": {
+            "sub": "^(xxxx|yyyy)@example\\.jp$"
+          }
+        }
+      ]
     }
   ]
 }
