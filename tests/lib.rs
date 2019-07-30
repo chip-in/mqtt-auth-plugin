@@ -194,6 +194,67 @@ fn test_proc_mosquitto_auth_plugin_init() {
     unsafe { drop(Box::from_raw(ptr_user_data)) }
 }
 
+#[test]
+fn test_acl2() {
+    let user_data: Box<*mut UserData> = Box::new(0 as *mut UserData);
+    let ptr_user_data = Box::into_raw(user_data);
+
+    let mut acl_file = std::env::current_dir().unwrap();
+    acl_file.push("samples");
+    acl_file.push("acl2.json");
+    println!("{:?}", acl_file);
+    let mut mosquitto_opt: Vec<mosquitto_opt> = Vec::new();
+    let config_key = CString::new(::DEFAULT_CONFIG_PATH_OPT_KEY).unwrap();
+    let file_path = CString::new(acl_file.to_str().unwrap()).unwrap();
+    mosquitto_opt.push(::mosquitto_opt {
+        key: config_key.as_ptr(),
+        value: file_path.as_ptr(),
+    });
+    ::proc_mosquitto_auth_plugin_init(ptr_user_data, &mosquitto_opt[0], mosquitto_opt.len() as i32);
+
+    ::proc_mosquitto_auth_security_init(
+        unsafe { *ptr_user_data },
+        &mosquitto_opt[0],
+        mosquitto_opt.len() as i32,
+        1,
+    );
+
+    assert_eq!(
+        check1(
+            ptr_user_data,
+            "/foo/xxx/",
+            ::MOSQ_ACL_WRITE,
+            &Claims {
+                sub: "xxxx@example.jp",
+                xattr: "33333",
+                exp: unix_time() + 10,
+            },
+        ),
+        ::MOSQ_ERR_ACL_DENIED
+    );
+
+    assert_eq!(
+        check1(
+            ptr_user_data,
+            "/foo/bar/",
+            ::MOSQ_ACL_WRITE,
+            &Claims {
+                sub: "xxxx@example.jp",
+                xattr: "33333",
+                exp: unix_time() + 10,
+            },
+        ),
+        ::MOSQ_ERR_SUCCESS
+    );
+
+    ::proc_mosquitto_auth_plugin_cleanup(
+        unsafe { *ptr_user_data },
+        &mosquitto_opt[0],
+        mosquitto_opt.len() as i32,
+    );
+    unsafe { drop(Box::from_raw(ptr_user_data)) }
+}
+
 fn check1(ptr_user_data: *mut *mut UserData, topic: &str, access: c_int, claims: &Claims) -> c_int {
     let token = encode(&Header::default(), &claims, "q6r2MewgJmLc".as_ref()).unwrap();
     let token = CString::new(token).expect("error");
