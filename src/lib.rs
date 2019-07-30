@@ -22,7 +22,6 @@ use serde_json::Value;
 use simplelog::{
     CombinedLogger, Config, Level, LevelFilter, SharedLogger, TermLogger, WriteLogger,
 };
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::fmt;
@@ -167,7 +166,7 @@ pub extern "C" fn proc_mosquitto_auth_plugin_init(
             log_file,
         ));
     }
-    CombinedLogger::init(log_list).unwrap();
+    CombinedLogger::init(log_list).unwrap_or_else(|x| error!("{}", x));
 
     info!("start plugin");
     debug!("proc_mosquitto_auth_plugin_init");
@@ -423,16 +422,20 @@ fn proc_mosquitto_auth_acl_check(
         .unwrap_or("no sub");
     let (db_name, subset_name) = if let Some(caps) = REGEX_PATH_TRANSACTION.captures(topic) {
         (
-            percent_decode(caps.get(1).unwrap().as_str().as_bytes())
-                .decode_utf8()
-                .unwrap(),
+            Some(
+                percent_decode(caps.get(1).unwrap().as_str().as_bytes())
+                    .decode_utf8()
+                    .unwrap(),
+            ),
             None,
         )
     } else if let Some(caps) = REGEX_PATH_SUBSET_TRANSACTION.captures(topic) {
         (
-            percent_decode(caps.get(1).unwrap().as_str().as_bytes())
-                .decode_utf8()
-                .unwrap(),
+            Some(
+                percent_decode(caps.get(1).unwrap().as_str().as_bytes())
+                    .decode_utf8()
+                    .unwrap(),
+            ),
             Some(
                 percent_decode(caps.get(2).unwrap().as_str().as_bytes())
                     .decode_utf8()
@@ -440,7 +443,7 @@ fn proc_mosquitto_auth_acl_check(
             ),
         )
     } else {
-        (Cow::from(""), None)
+        (None, None)
     };
     let mode = match access {
         MOSQ_ACL_READ => "READ",
@@ -450,24 +453,27 @@ fn proc_mosquitto_auth_acl_check(
     };
     for acl in &config.acl {
         match &acl.resource {
-            config::Resource::Dadget(resource) => {
-                if resource
-                    .path
-                    .check_path(db_name.as_ref(), subset_name.as_ref().map(|x| x.as_ref()))
-                {
-                    let result = check_accesses(&token_data.claims, &acl.accesses, access);
-                    if result == MOSQ_ERR_SUCCESS {
-                        let log = user_data.log.lock().unwrap();
-                        if let Some(ref log) = *log {
-                            let mut output = String::new();
-                            fmt::write(&mut output, format_args!("{} {} {}", mode, topic, sub))
-                                .unwrap();
-                            log.send((Local::now(), output)).unwrap();
-                        };
-                        return result;
+            config::Resource::Dadget(resource) => match db_name {
+                None => {}
+                Some(ref db_name) => {
+                    if resource
+                        .path
+                        .check_path(db_name, subset_name.as_ref().map(|x| x.as_ref()))
+                    {
+                        let result = check_accesses(&token_data.claims, &acl.accesses, access);
+                        if result == MOSQ_ERR_SUCCESS {
+                            let log = user_data.log.lock().unwrap();
+                            if let Some(ref log) = *log {
+                                let mut output = String::new();
+                                fmt::write(&mut output, format_args!("{} {} {}", mode, topic, sub))
+                                    .unwrap();
+                                log.send((Local::now(), output)).unwrap();
+                            };
+                            return result;
+                        }
                     }
                 }
-            }
+            },
             config::Resource::Mqtt(resource) => {
                 if resource.path.check_path(topic) {
                     let result = check_accesses(&token_data.claims, &acl.accesses, access);

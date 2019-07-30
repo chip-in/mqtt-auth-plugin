@@ -1,0 +1,33 @@
+{
+	"key": "q6r2MewgJmLc",
+	"acl": [
+		{
+			"resource": {
+				"path": {
+					"regex": "/.*"
+				},
+				"type": "dadget"
+			},
+			"name": "any-database",
+			"accesses": [
+				{
+					"operation": "*"
+				}
+			]
+		},
+		{
+			"resource": {
+				"path": {
+					"regex": "/foo/bar/"
+				},
+				"type": "mqtt"
+			},
+			"name": "pubsub-foobar",
+			"accesses": [
+				{
+					"operation": "*"
+				}
+			]
+		}
+	]
+}
