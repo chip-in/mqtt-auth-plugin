@@ -45,4 +45,5 @@ jobs:
         run: |
           npm i -g release-it@${RELEASE_IT_VERSION}
           npm i -g @release-it/bumper
+          export NODE_PATH=`npm root -g`
           release-it -- ${UPDATE_ARGS} --ci
