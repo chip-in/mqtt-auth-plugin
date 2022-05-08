@@ -45,5 +45,5 @@ jobs:
         if: "env.UPDATE_ARGS != ''"
         run: |
           npm i -g release-it@${RELEASE_IT_VERSION}
-          npm i -g @release-it/bumper@{BUMPER_VERSION}
+          npm i -g @release-it/bumper@${BUMPER_VERSION}
           release-it -- ${UPDATE_ARGS} --ci
