@@ -1,8 +1,5 @@
-name: CI
+name: Build Test
 on:
-  push:
-    tags: [ '*' ]
-    branches: [ '**' ]
   workflow_dispatch:
 
 jobs:
@@ -17,10 +14,3 @@ jobs:
           docker build -t chipin/build .
           docker run --rm -v $TRAVIS_BUILD_DIR:/root/build chipin/build /bin/sh -c "source /root/.cargo/env; cd /root/build; make test"
           docker run --rm -v $TRAVIS_BUILD_DIR:/root/build chipin/build /bin/sh -c "source /root/.cargo/env; cd /root/build; make"
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: chipin_auth_plug.so
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
