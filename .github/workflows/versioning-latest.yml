@@ -42,8 +42,4 @@ jobs:
           echo 'UPDATE_ARGS=major' >> $GITHUB_ENV
       - name: Release
         if: "env.UPDATE_ARGS != ''"
-        run: |
-          npm i -g release-it@${RELEASE_IT_VERSION}
-          npm i -g @release-it/bumper
-          export NODE_PATH=`npm root -g`
-          release-it -- ${UPDATE_ARGS} --ci
+        run:  npx release-it@${RELEASE_IT_VERSION} ${UPDATE_ARGS} --ci
