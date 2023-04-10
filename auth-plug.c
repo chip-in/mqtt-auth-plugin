@@ -54,7 +54,13 @@ int mosquitto_auth_security_cleanup(void *userdata, struct mosquitto_auth_opt *a
 	return proc_mosquitto_auth_security_cleanup(userdata, auth_opts, auth_opt_count, reload);
 }
 
-#if MOSQ_AUTH_PLUGIN_VERSION >=3
+#if MOSQ_AUTH_PLUGIN_VERSION >=4
+int mosquitto_auth_unpwd_check(void *userdata, struct mosquitto *client, const char *username, const char *password)
+{
+	int granted = proc_mosquitto_auth_unpwd_check_v3(userdata, client, username, password);
+	return conv_code(granted);
+}
+#elif MOSQ_AUTH_PLUGIN_VERSION >=3
 int mosquitto_auth_unpwd_check(void *userdata, const struct mosquitto *client, const char *username, const char *password)
 {
 	int granted = proc_mosquitto_auth_unpwd_check_v3(userdata, client, username, password);
@@ -68,7 +74,13 @@ int mosquitto_auth_unpwd_check(void *userdata, const char *username, const char 
 }
 #endif
 
-#if MOSQ_AUTH_PLUGIN_VERSION >= 3
+#if MOSQ_AUTH_PLUGIN_VERSION >= 4
+int mosquitto_auth_acl_check(void *userdata, int access, struct mosquitto *client, const struct mosquitto_acl_msg *msg)
+{
+	int granted = proc_mosquitto_auth_acl_check_v3(userdata, access, client, msg);
+	return conv_code(granted);
+}
+#elif MOSQ_AUTH_PLUGIN_VERSION >= 3
 int mosquitto_auth_acl_check(void *userdata, int access, const struct mosquitto *client, const struct mosquitto_acl_msg *msg)
 {
 	int granted = proc_mosquitto_auth_acl_check_v3(userdata, access, client, msg);
@@ -82,7 +94,9 @@ int mosquitto_auth_acl_check(void *userdata, const char *clientid, const char *u
 }
 #endif
 
-#if MOSQ_AUTH_PLUGIN_VERSION >= 3
+#if MOSQ_AUTH_PLUGIN_VERSION >= 4
+int mosquitto_auth_psk_key_get(void *userdata, struct mosquitto *client, const char *hint, const char *identity, char *key, int max_key_len)
+#elif MOSQ_AUTH_PLUGIN_VERSION >= 3
 int mosquitto_auth_psk_key_get(void *userdata, const struct mosquitto *client, const char *hint, const char *identity, char *key, int max_key_len)
 #else
 int mosquitto_auth_psk_key_get(void *userdata, const char *hint, const char *identity, char *key, int max_key_len)

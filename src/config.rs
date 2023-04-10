@@ -61,7 +61,7 @@ pub struct Accesses {
     pub subject: Option<HashMap<String, SubjectRegex>>,
 }
 
-pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Config, Box<Error>> {
+pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn Error>> {
     let file = File::open(path)?;
     let u = serde_json::from_reader(file)?;
     Ok(u)
